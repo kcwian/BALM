@@ -28,6 +28,110 @@ void pub_pl_func(T &pl, ros::Publisher &pub)
 
 ros::Publisher pub_path, pub_test, pub_show, pub_cute;
 
+
+#include <ros/ros.h>
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <nav_msgs/Odometry.h>
+#include <pcl_ros/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/conversions.h>
+
+// Define the PointCloud type (for example pcl::PointXYZ)
+typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
+
+// int read_data(vector<double> &tims, PLM(3) &rots, PLV(3) &poss, string prename)
+int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_fulls, string &bag_filepath)
+{
+    std::string pointcloud_topic = "/os_cloud_node/points";  // Change to your actual PointCloud2 topic name
+    std::string odometry_topic = "/loam_opensource";      // Change to your actual Odometry topic name
+    int pose_size = 0;
+    int cloud_size = 0;
+    // Open the rosbag file
+    rosbag::Bag bag;
+    try {
+        bag.open(bag_filepath, rosbag::bagmode::Read);
+    } catch (rosbag::BagException &e) {
+        ROS_ERROR("Error opening bag file: %s", e.what());
+        return -1;
+    }
+
+    // Specify the topics you want to read
+    std::vector<std::string> topics;
+    topics.push_back(pointcloud_topic);
+    topics.push_back(odometry_topic);
+    rosbag::View view(bag, rosbag::TopicQuery(topics));
+
+    // Iterate through the bag file
+    for (const rosbag::MessageInstance &msg : view) {
+       
+        if (pose_size == 200 && cloud_size == 200)
+             break;
+        // Check if the message is a PointCloud2
+        if (msg.getTopic() == pointcloud_topic || msg.isType<sensor_msgs::PointCloud2>()) {
+            sensor_msgs::PointCloud2::ConstPtr pc2_msg = msg.instantiate<sensor_msgs::PointCloud2>();
+            if (pc2_msg != nullptr) {
+                // Convert the sensor_msgs/PointCloud2 message to a PCL PointCloud
+                pcl::PointCloud<pcl::PointXYZI> pl_tem;
+                pcl::fromROSMsg(*pc2_msg, pl_tem);
+                pcl::PointCloud<PointType>::Ptr pl_ptr(new pcl::PointCloud<PointType>());
+                for (pcl::PointXYZI &pp : pl_tem.points) {
+                  PointType ap;
+                  ap.x = pp.x;
+                  ap.y = pp.y;
+                  ap.z = pp.z;
+                  ap.intensity = pp.intensity;
+                  pl_ptr->push_back(ap);
+                }
+                cloud_size++;
+                pl_fulls.push_back(pl_ptr);
+            }
+        }
+
+        // Check if the message is an Odometry message
+        if (msg.getTopic() == odometry_topic || msg.isType<nav_msgs::Odometry>()) {
+            nav_msgs::Odometry::ConstPtr odom_msg = msg.instantiate<nav_msgs::Odometry>();
+            if (odom_msg != nullptr) {
+              // Process the odometry data
+              // ROS_INFO("Odometry received: Position (x: %f, y: %f, z: %f), Orientation (x: %f, y: %f, z: %f, w: %f)",
+              double x = odom_msg->pose.pose.position.x;
+              double y = odom_msg->pose.pose.position.y;
+              double z = odom_msg->pose.pose.position.z;
+              double qx = odom_msg->pose.pose.orientation.x;
+              double qy = odom_msg->pose.pose.orientation.y;
+              double qz = odom_msg->pose.pose.orientation.z;
+              double qw = odom_msg->pose.pose.orientation.w;
+
+              Eigen::Affine3d aff = Eigen::Affine3d::Identity();
+              aff.translation() = Eigen::Vector3d(x, y, z);
+              aff.linear() = Eigen::Quaterniond(qw, qx, qy, qz).toRotationMatrix();
+
+              PLV(3) poss;
+              PLM(3) rots;
+              vector<double> tims;
+              rots.push_back(aff.matrix().block<3, 3>(0, 0));
+              poss.push_back(aff.matrix().block<3, 1>(0, 3));
+              tims.push_back(odom_msg->header.stamp.toSec());
+              pose_size++;
+
+              IMUST curr;
+              curr.R = rots[0];
+              curr.p = poss[0];
+              curr.t = tims[0];
+              x_buf.push_back(curr);
+            }
+        }
+    }
+
+    // Close the bag file
+    bag.close();
+    std::cout << "Poses: " << pose_size << " Scans: " << cloud_size << std::endl;
+    return pose_size;
+}
+
+
 int read_pose(vector<double> &tims, PLM(3) &rots, PLV(3) &poss, string prename)
 {
   string readname = prename + "alidarPose.csv";
@@ -158,7 +262,8 @@ int main(int argc, char **argv)
   string file_path;
   n.param<string>("file_path", file_path, "");
 
-  read_file(x_buf, pl_fulls, file_path);
+  read_data(x_buf, pl_fulls, file_path);
+//   read_file(x_buf, pl_fulls, file_path);
 
   IMUST es0 = x_buf[0];
   for(uint i=0; i<x_buf.size(); i++)
@@ -236,5 +341,3 @@ int main(int argc, char **argv)
   return 0;
 
 }
-
-
