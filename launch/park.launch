@@ -1,8 +1,8 @@
 <launch>
-	<arg name="rviz" default="true" />
+	<arg name="rviz" default="false" />
 
 	<param name="voxel_size" type="double" value="0.5" />
-	<param name="file_path" type="string" value="/root/share/dataset/NewerCollege/stairs/bag/stairs.bag" />
+	<param name="file_path" type="string" value="/root/share/dataset/NewerCollege/park/bag/park.bag" />
        <param name="trajectory_output_path" type="string" value="$(find balm2)/output/balm_stairs.tum" />
 	<node pkg="balm2" type="benchmark_realworld" name="benchmark_realworld" output="screen" />
 

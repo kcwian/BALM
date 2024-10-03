@@ -278,10 +278,10 @@ int main(int argc, char **argv)
   win_size = x_buf.size();
   printf("The size of poses: %d\n", win_size);
 
-  data_show(x_buf, pl_fulls);
+ // data_show(x_buf, pl_fulls);
   printf("Check the point cloud with the initial poses.\n");
   printf("If no problem, input '1' to continue or '0' to exit...\n");
-  int a; cin >> a; if(a==0) exit(0);
+//  int a; cin >> a; if(a==0) exit(0);
 
   pcl::PointCloud<PointType> pl_full, pl_surf, pl_path, pl_send;
   for(int iterCount=0; iterCount<1; iterCount++)
@@ -311,7 +311,7 @@ int main(int argc, char **argv)
     printf("\nThe planes (point association) cut by adaptive voxelization.\n");
     printf("If the planes are too few, the optimization will be degenerated and fail.\n");
     printf("If no problem, input '1' to continue or '0' to exit...\n");
-    int a; cin >> a; if(a==0) exit(0);
+ //   int a; cin >> a; if(a==0) exit(0);
     pl_send.clear(); pub_pl_func(pl_send, pub_cute);
 
     if(voxhess.plvec_voxels.size() < 3 * x_buf.size())
@@ -337,7 +337,7 @@ int main(int argc, char **argv)
 
   printf("\nRefined point cloud is publishing...\n");
   malloc_trim(0);
-  data_show(x_buf, pl_fulls);
+//  data_show(x_buf, pl_fulls);
   printf("\nRefined point cloud is published.\n");
 
   // dump output to txt file
@@ -347,7 +347,9 @@ int main(int argc, char **argv)
   {
     Eigen::Quaterniond quat(x_buf[i].R);
     os << x_buf[i].t << " "
-       << x_buf[i].p.transpose() << " "
+       << x_buf[i].p[0] << " "
+       << x_buf[i].p[1] << " "
+       << x_buf[i].p[2] << " "
        << quat.x() << " "
        << quat.y() << " "
        << quat.z() << " "
@@ -356,7 +358,7 @@ int main(int argc, char **argv)
   cout << "trajectory output written in " << balm_trajectory << endl;
   os.close();
   
-  ros::spin();
+//  ros::spin();
   return 0;
 
 }

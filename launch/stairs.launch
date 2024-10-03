@@ -1,5 +1,5 @@
 <launch>
-	<arg name="rviz" default="true" />
+	<arg name="rviz" default="false" />
 
 	<param name="voxel_size" type="double" value="0.5" />
 	<param name="file_path" type="string" value="/root/share/dataset/NewerCollege/stairs/bag/stairs.bag" />
