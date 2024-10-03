@@ -12,6 +12,8 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <malloc.h>
+#include <Eigen/Core>
+#include <fstream>
 
 using namespace std;
 
@@ -259,8 +261,9 @@ int main(int argc, char **argv)
   vector<pcl::PointCloud<PointType>::Ptr> pl_fulls;
 
   n.param<double>("voxel_size", voxel_size, 1);
-  string file_path;
+  string file_path, balm_trajectory;
   n.param<string>("file_path", file_path, "");
+  n.param<string>("trajectory_output_path", balm_trajectory, "");
 
   read_data(x_buf, pl_fulls, file_path);
 //   read_file(x_buf, pl_fulls, file_path);
@@ -337,6 +340,22 @@ int main(int argc, char **argv)
   data_show(x_buf, pl_fulls);
   printf("\nRefined point cloud is published.\n");
 
+  // dump output to txt file
+  ofstream os(balm_trajectory);
+  os << fixed << setprecision(6);
+  for (uint i = 0; i < x_buf.size(); i++)
+  {
+    Eigen::Quaterniond quat(x_buf[i].R);
+    os << x_buf[i].t << " "
+       << x_buf[i].p.transpose() << " "
+       << quat.x() << " "
+       << quat.y() << " "
+       << quat.z() << " "
+       << quat.w() << "\n";
+  }
+  cout << "trajectory output written in " << balm_trajectory << endl;
+  os.close();
+  
   ros::spin();
   return 0;
 
