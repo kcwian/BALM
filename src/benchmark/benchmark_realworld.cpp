@@ -45,10 +45,10 @@ ros::Publisher pub_path, pub_test, pub_show, pub_cute;
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
 // int read_data(vector<double> &tims, PLM(3) &rots, PLV(3) &poss, string prename)
-int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_fulls, string &bag_filepath)
+int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_fulls, string &bag_filepath, string & odom_topic, string & lidar_topic, int decimation_init)
 {
-    std::string pointcloud_topic = "/ouster/points";  // Change to your actual PointCloud2 topic name
-    std::string odometry_topic = "/loam_opensource_aft_mapped";      // Change to your actual Odometry topic name
+    std::string pointcloud_topic = lidar_topic;  // Change to your actual PointCloud2 topic name
+    std::string odometry_topic = odom_topic;      // Change to your actual Odometry topic name
     int pose_size = 0;
     int cloud_size = 0;
     // Open the rosbag file
@@ -67,10 +67,8 @@ int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_
     rosbag::View view(bag, rosbag::TopicQuery(topics));
 
     // Iterate through the bag file
-    int decimation = 120/voxel_size;
+    int decimation = decimation_init/voxel_size;
     for (const rosbag::MessageInstance &msg : view) {
-  //      if (pose_size == 200 && cloud_size == 200)
-    //         break;
         // Check if the message is a PointCloud2
         if (msg.getTopic() == pointcloud_topic || msg.isType<sensor_msgs::PointCloud2>()) {
             sensor_msgs::PointCloud2::ConstPtr pc2_msg = msg.instantiate<sensor_msgs::PointCloud2>();
@@ -262,112 +260,111 @@ int main(int argc, char **argv)
   pub_show = n.advertise<sensor_msgs::PointCloud2>("/map_show", 100);
   pub_cute = n.advertise<sensor_msgs::PointCloud2>("/map_cute", 100);
 
-
   for (int voxel_i = 4; voxel_i < 5; voxel_i++) {
     voxel_size = voxel_i;
     std::cout << "Voxel size: " << voxel_size << std::endl;
 
-  string prename, ofname;
-  vector<IMUST> x_buf;
-  vector<pcl::PointCloud<PointType>::Ptr> pl_fulls;
+    string prename, ofname;
+    vector<IMUST> x_buf;
+    vector<pcl::PointCloud<PointType>::Ptr> pl_fulls;
 
- // n.param<double>("voxel_size", voxel_size, 1);
-  string file_path, balm_trajectory;
-  n.param<string>("file_path", file_path, "");
-  n.param<string>("trajectory_output_path", balm_trajectory, "");
+    // n.param<double>("voxel_size", voxel_size, 1);
+    string file_path, balm_trajectory, odom_topic, lidar_topic;
+    int decimation;
+    n.param<string>("file_path", file_path, "");
+    n.param<string>("trajectory_output_path", balm_trajectory, "");
+    n.param<string>("odom_topic", odom_topic, "");
+    n.param<string>("lidar_topic", lidar_topic, "");
+    n.param<int>("decimation", decimation, "");
 
-  read_data(x_buf, pl_fulls, file_path);
-//   read_file(x_buf, pl_fulls, file_path);
+    read_data(x_buf, pl_fulls, file_path, odom_topic, lidar_topic, decimation);
+    //   read_file(x_buf, pl_fulls, file_path);
 
-  IMUST es0 = x_buf[0];
-  for(uint i=0; i<x_buf.size(); i++)
-  {
-    x_buf[i].p = es0.R.transpose() * (x_buf[i].p - es0.p);
-    x_buf[i].R = es0.R.transpose() * x_buf[i].R;
-  }
-
-  win_size = x_buf.size();
-  printf("The size of poses: %d\n", win_size);
-
- // data_show(x_buf, pl_fulls);
-  printf("Check the point cloud with the initial poses.\n");
-  printf("If no problem, input '1' to continue or '0' to exit...\n");
-//  int a; cin >> a; if(a==0) exit(0);
-
-  pcl::PointCloud<PointType> pl_full, pl_surf, pl_path, pl_send;
-  for(int iterCount=0; iterCount<1; iterCount++)
-  { 
-    unordered_map<VOXEL_LOC, OCTO_TREE_ROOT*> surf_map;
-
-    eigen_value_array[0] = 1.0 / 16;
-    eigen_value_array[1] = 1.0 / 16;
-    eigen_value_array[2] = 1.0 / 9;
-
-    for(int i=0; i<win_size; i++)
-      cut_voxel(surf_map, *pl_fulls[i], x_buf[i], i);
-
-    pcl::PointCloud<PointType> pl_send;
-    pub_pl_func(pl_send, pub_show);
-
-    pcl::PointCloud<PointType> pl_cent; pl_send.clear();
-    VOX_HESS voxhess;
-    for(auto iter=surf_map.begin(); iter!=surf_map.end() && n.ok(); iter++)
-    {
-      iter->second->recut(win_size);
-      iter->second->tras_opt(voxhess, win_size);
-      iter->second->tras_display(pl_send, win_size);
+    IMUST es0 = x_buf[0];
+    for (uint i = 0; i < x_buf.size(); i++) {
+      x_buf[i].p = es0.R.transpose() * (x_buf[i].p - es0.p);
+      x_buf[i].R = es0.R.transpose() * x_buf[i].R;
     }
 
-    pub_pl_func(pl_send, pub_cute);
-    printf("\nThe planes (point association) cut by adaptive voxelization.\n");
-    printf("If the planes are too few, the optimization will be degenerated and fail.\n");
+    win_size = x_buf.size();
+    printf("The size of poses: %d\n", win_size);
+
+    // data_show(x_buf, pl_fulls);
+    printf("Check the point cloud with the initial poses.\n");
     printf("If no problem, input '1' to continue or '0' to exit...\n");
- //   int a; cin >> a; if(a==0) exit(0);
-    pl_send.clear(); pub_pl_func(pl_send, pub_cute);
+    //  int a; cin >> a; if(a==0) exit(0);
 
-    if(voxhess.plvec_voxels.size() < 3 * x_buf.size())
-    {
-      printf("Initial error too large.\n");
-      printf("Please loose plane determination criteria for more planes.\n");
-      printf("The optimization is terminated.\n");
-//      exit(0);
+    pcl::PointCloud<PointType> pl_full, pl_surf, pl_path, pl_send;
+    for (int iterCount = 0; iterCount < 1; iterCount++) {
+      unordered_map<VOXEL_LOC, OCTO_TREE_ROOT *> surf_map;
+
+      eigen_value_array[0] = 1.0 / 16;
+      eigen_value_array[1] = 1.0 / 16;
+      eigen_value_array[2] = 1.0 / 9;
+
+      for (int i = 0; i < win_size; i++)
+        cut_voxel(surf_map, *pl_fulls[i], x_buf[i], i);
+
+      pcl::PointCloud<PointType> pl_send;
+      pub_pl_func(pl_send, pub_show);
+
+      pcl::PointCloud<PointType> pl_cent;
+      pl_send.clear();
+      VOX_HESS voxhess;
+      for (auto iter = surf_map.begin(); iter != surf_map.end() && n.ok(); iter++) {
+        iter->second->recut(win_size);
+        iter->second->tras_opt(voxhess, win_size);
+        iter->second->tras_display(pl_send, win_size);
+      }
+
+      pub_pl_func(pl_send, pub_cute);
+      printf("\nThe planes (point association) cut by adaptive voxelization.\n");
+      printf("If the planes are too few, the optimization will be degenerated and fail.\n");
+      printf("If no problem, input '1' to continue or '0' to exit...\n");
+      //   int a; cin >> a; if(a==0) exit(0);
+      pl_send.clear();
+      pub_pl_func(pl_send, pub_cute);
+
+      if (voxhess.plvec_voxels.size() < 3 * x_buf.size()) {
+        printf("Initial error too large.\n");
+        printf("Please loose plane determination criteria for more planes.\n");
+        printf("The optimization is terminated.\n");
+        //      exit(0);
+      }
+      BALM2 opt_lsv;
+
+      opt_lsv.damping_iter(x_buf, voxhess);
+
+      for (auto iter = surf_map.begin(); iter != surf_map.end();) {
+        delete iter->second;
+        surf_map.erase(iter++);
+      }
+      surf_map.clear();
+
+      malloc_trim(0);
     }
-    BALM2 opt_lsv;
 
-    opt_lsv.damping_iter(x_buf, voxhess);
-
-    for(auto iter=surf_map.begin(); iter!=surf_map.end();)
-    {
-      delete iter->second;
-      surf_map.erase(iter++);
-    }
-    surf_map.clear();
-
+    printf("\nRefined point cloud is publishing...\n");
     malloc_trim(0);
-  }
+    //  data_show(x_buf, pl_fulls);
+    printf("\nRefined point cloud is published.\n");
 
-  printf("\nRefined point cloud is publishing...\n");
-  malloc_trim(0);
-//  data_show(x_buf, pl_fulls);
-  printf("\nRefined point cloud is published.\n");
-
-  // dump output to txt file
-  ofstream os(balm_trajectory+std::to_string((voxel_size))+"_dec_" +std::to_string((10/voxel_size)));
-  os << fixed << setprecision(6);
-  for (uint i = 0; i < x_buf.size(); i++)
-  {
-    Eigen::Quaterniond quat(x_buf[i].R);
-    os << x_buf[i].t << " "
-       << x_buf[i].p[0] << " "
-       << x_buf[i].p[1] << " "
-       << x_buf[i].p[2] << " "
-       << quat.x() << " "
-       << quat.y() << " "
-       << quat.z() << " "
-       << quat.w() << "\n";
-  }
-  cout << "trajectory output written in " << balm_trajectory << endl;
-  os.close();
+    // dump output to txt file
+    ofstream os(balm_trajectory + std::to_string((voxel_size)) + "_dec_" + std::to_string((10 / voxel_size)));
+    os << fixed << setprecision(6);
+    for (uint i = 0; i < x_buf.size(); i++) {
+      Eigen::Quaterniond quat(x_buf[i].R);
+      os << x_buf[i].t << " "
+         << x_buf[i].p[0] << " "
+         << x_buf[i].p[1] << " "
+         << x_buf[i].p[2] << " "
+         << quat.x() << " "
+         << quat.y() << " "
+         << quat.z() << " "
+         << quat.w() << "\n";
+    }
+    cout << "trajectory output written in " << balm_trajectory << endl;
+    os.close();
   }
 //  ros::spin();
   return 0;
