@@ -1,9 +1,9 @@
 <launch>
 	<arg name="rviz" default="false" />
 
-	<param name="voxel_size" type="double" value="1.0" />
-	<param name="file_path" type="string" value="/root/share/dataset/NewerCollege/maths_institute/bag/maths_easy.bag" />
-        <param name="trajectory_output_path" type="string" value="$(find balm2)/output/balm_maths_easy.tum" />
+	<param name="voxel_size" type="double" value="0.5" />
+	<param name="file_path" type="string" value="/root/share/dataset/VBR/Pincio/bag/pincio_train0.bag" />
+       <param name="trajectory_output_path" type="string" value="$(find balm2)/output/balm_pincio.tum" />
 	<node pkg="balm2" type="benchmark_realworld" name="benchmark_realworld" output="screen" />
 
 	<group if="$(arg rviz)">

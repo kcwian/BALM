@@ -47,8 +47,8 @@ typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 // int read_data(vector<double> &tims, PLM(3) &rots, PLV(3) &poss, string prename)
 int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_fulls, string &bag_filepath)
 {
-    std::string pointcloud_topic = "/os_cloud_node/points";  // Change to your actual PointCloud2 topic name
-    std::string odometry_topic = "/loam_opensource";      // Change to your actual Odometry topic name
+    std::string pointcloud_topic = "/ouster/points";  // Change to your actual PointCloud2 topic name
+    std::string odometry_topic = "/loam_opensource_aft_mapped";      // Change to your actual Odometry topic name
     int pose_size = 0;
     int cloud_size = 0;
     // Open the rosbag file
@@ -67,14 +67,16 @@ int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_
     rosbag::View view(bag, rosbag::TopicQuery(topics));
 
     // Iterate through the bag file
+    int decimation = 120/voxel_size;
     for (const rosbag::MessageInstance &msg : view) {
-       
-        if (pose_size == 200 && cloud_size == 200)
-             break;
+  //      if (pose_size == 200 && cloud_size == 200)
+    //         break;
         // Check if the message is a PointCloud2
         if (msg.getTopic() == pointcloud_topic || msg.isType<sensor_msgs::PointCloud2>()) {
             sensor_msgs::PointCloud2::ConstPtr pc2_msg = msg.instantiate<sensor_msgs::PointCloud2>();
             if (pc2_msg != nullptr) {
+                static int cloud_cnt = 0;
+                if (cloud_cnt++ % decimation == 0){
                 // Convert the sensor_msgs/PointCloud2 message to a PCL PointCloud
                 pcl::PointCloud<pcl::PointXYZI> pl_tem;
                 pcl::fromROSMsg(*pc2_msg, pl_tem);
@@ -89,6 +91,7 @@ int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_
                 }
                 cloud_size++;
                 pl_fulls.push_back(pl_ptr);
+		}
             }
         }
 
@@ -96,6 +99,8 @@ int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_
         if (msg.getTopic() == odometry_topic || msg.isType<nav_msgs::Odometry>()) {
             nav_msgs::Odometry::ConstPtr odom_msg = msg.instantiate<nav_msgs::Odometry>();
             if (odom_msg != nullptr) {
+	      static int odom_cnt = 0;
+              if (odom_cnt++ % decimation == 0){
               // Process the odometry data
               // ROS_INFO("Odometry received: Position (x: %f, y: %f, z: %f), Orientation (x: %f, y: %f, z: %f, w: %f)",
               double x = odom_msg->pose.pose.position.x;
@@ -123,7 +128,8 @@ int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_
               curr.p = poss[0];
               curr.t = tims[0];
               x_buf.push_back(curr);
-            }
+                }
+	     }
         }
     }
 
@@ -256,11 +262,16 @@ int main(int argc, char **argv)
   pub_show = n.advertise<sensor_msgs::PointCloud2>("/map_show", 100);
   pub_cute = n.advertise<sensor_msgs::PointCloud2>("/map_cute", 100);
 
+
+  for (int voxel_i = 4; voxel_i < 5; voxel_i++) {
+    voxel_size = voxel_i;
+    std::cout << "Voxel size: " << voxel_size << std::endl;
+
   string prename, ofname;
   vector<IMUST> x_buf;
   vector<pcl::PointCloud<PointType>::Ptr> pl_fulls;
 
-  n.param<double>("voxel_size", voxel_size, 1);
+ // n.param<double>("voxel_size", voxel_size, 1);
   string file_path, balm_trajectory;
   n.param<string>("file_path", file_path, "");
   n.param<string>("trajectory_output_path", balm_trajectory, "");
@@ -319,10 +330,10 @@ int main(int argc, char **argv)
       printf("Initial error too large.\n");
       printf("Please loose plane determination criteria for more planes.\n");
       printf("The optimization is terminated.\n");
-      exit(0);
+//      exit(0);
     }
-
     BALM2 opt_lsv;
+
     opt_lsv.damping_iter(x_buf, voxhess);
 
     for(auto iter=surf_map.begin(); iter!=surf_map.end();)
@@ -341,7 +352,7 @@ int main(int argc, char **argv)
   printf("\nRefined point cloud is published.\n");
 
   // dump output to txt file
-  ofstream os(balm_trajectory);
+  ofstream os(balm_trajectory+std::to_string((voxel_size))+"_dec_" +std::to_string((10/voxel_size)));
   os << fixed << setprecision(6);
   for (uint i = 0; i < x_buf.size(); i++)
   {
@@ -357,7 +368,7 @@ int main(int argc, char **argv)
   }
   cout << "trajectory output written in " << balm_trajectory << endl;
   os.close();
-  
+  }
 //  ros::spin();
   return 0;
 
