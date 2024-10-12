@@ -1,0 +1,13 @@
+<launch>
+    <arg name="rviz" default="false" />
+    <arg name="voxel_size" default="1.0" />
+
+    <param name="voxel_size" type="double" value="$(arg voxel_size)" />
+    <param name="poses_limit" type="int" value="150" /> <!-- Poses limit for initial voxel_size = 1 -->
+    <param name="lidar_topic" type="string" value="/ouster/points" />
+    <param name="odom_topic" type="string" value="/loam_opensource_aft_mapped" />
+    <param name="file_path" type="string" value="/root/share/dataset/VBR/Colosseo/bag/colosseo.bag" />
+    <param name="trajectory_output_path" type="string" value="$(find balm2)/output_vbr/balm_colloseo.tum" />
+    <node pkg="balm2" type="benchmark_realworld" name="benchmark_realworld" output="screen" />
+
+</launch>

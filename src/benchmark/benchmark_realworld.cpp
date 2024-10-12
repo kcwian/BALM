@@ -45,7 +45,7 @@ ros::Publisher pub_path, pub_test, pub_show, pub_cute;
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
 // int read_data(vector<double> &tims, PLM(3) &rots, PLV(3) &poss, string prename)
-int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_fulls, string &bag_filepath, string & odom_topic, string & lidar_topic, int decimation_init)
+int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_fulls, string &bag_filepath, string & odom_topic, string & lidar_topic, int poses_limit)
 {
     std::string pointcloud_topic = lidar_topic;  // Change to your actual PointCloud2 topic name
     std::string odometry_topic = odom_topic;      // Change to your actual Odometry topic name
@@ -62,12 +62,19 @@ int read_data(vector<IMUST> &x_buf, vector<pcl::PointCloud<PointType>::Ptr> &pl_
 
     // Specify the topics you want to read
     std::vector<std::string> topics;
-    topics.push_back(pointcloud_topic);
     topics.push_back(odometry_topic);
+    rosbag::View view_odom(bag, rosbag::TopicQuery(topics));
+    int odom_msgs = 0;
+    // Iterate over the messages in the bag file
+    for (rosbag::View::iterator it = view_odom.begin(); it != view_odom.end(); ++it) {
+            odom_msgs++;
+    }
+    std::cout << "Odom_msgs: " << odom_msgs << std::endl;
+    topics.push_back(pointcloud_topic);
     rosbag::View view(bag, rosbag::TopicQuery(topics));
-
     // Iterate through the bag file
-    int decimation = decimation_init/voxel_size;
+    int decimation = (float) std::ceil(odom_msgs/poses_limit) / voxel_size;
+    std::cout << "Decimation: " << decimation << std::endl;
     for (const rosbag::MessageInstance &msg : view) {
         // Check if the message is a PointCloud2
         if (msg.getTopic() == pointcloud_topic || msg.isType<sensor_msgs::PointCloud2>()) {
@@ -260,24 +267,22 @@ int main(int argc, char **argv)
   pub_show = n.advertise<sensor_msgs::PointCloud2>("/map_show", 100);
   pub_cute = n.advertise<sensor_msgs::PointCloud2>("/map_cute", 100);
 
-  for (int voxel_i = 4; voxel_i < 5; voxel_i++) {
-    voxel_size = voxel_i;
-    std::cout << "Voxel size: " << voxel_size << std::endl;
 
     string prename, ofname;
     vector<IMUST> x_buf;
     vector<pcl::PointCloud<PointType>::Ptr> pl_fulls;
 
-    // n.param<double>("voxel_size", voxel_size, 1);
+    n.param<double>("voxel_size", voxel_size, 1);
+    std::cout << "Voxel size: " << voxel_size << std::endl;
     string file_path, balm_trajectory, odom_topic, lidar_topic;
-    int decimation;
+    int poses_limit;
     n.param<string>("file_path", file_path, "");
     n.param<string>("trajectory_output_path", balm_trajectory, "");
     n.param<string>("odom_topic", odom_topic, "");
     n.param<string>("lidar_topic", lidar_topic, "");
-    n.param<int>("decimation", decimation, "");
+    n.param<int>("poses_limit", poses_limit, 150);
 
-    read_data(x_buf, pl_fulls, file_path, odom_topic, lidar_topic, decimation);
+    read_data(x_buf, pl_fulls, file_path, odom_topic, lidar_topic, poses_limit);
     //   read_file(x_buf, pl_fulls, file_path);
 
     IMUST es0 = x_buf[0];
@@ -342,7 +347,7 @@ int main(int argc, char **argv)
       surf_map.clear();
 
       malloc_trim(0);
-    }
+   
 
     printf("\nRefined point cloud is publishing...\n");
     malloc_trim(0);

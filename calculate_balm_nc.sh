@@ -1,14 +1,25 @@
 #!/bin/bash
-set -e
+mkdir -p output_nc
+for i in $(seq 1 1)
+do
+  roslaunch balm2 stairs.launch voxel_size:=$i
+done
+for i in $(seq 1 1)
+do
+  roslaunch balm2 cloister.launch voxel_size:=$i
+done
 
-echo ------------------------------- Stairs \n\n\n
-roslaunch balm2 stairs.launch
-echo ------------------------------- Clositer \n\n\n
-roslaunch balm2 cloister.launch
-echo ------------------------------- Maths easy \n\n\n
-roslaunch balm2 maths_easy.launch
-echo ------------------------------- Underground easy \n\n\n
-roslaunch balm2 underground_easy.launch
-echo ------------------------------- Quad easy \n\n\n
-roslaunch balm2 quad_easy.launch
-#roslaunch balm2 park.launch
+for i in $(seq 1 1)
+do
+  roslaunch balm2 maths_easy.launch voxel_size:=$i
+done
+
+for i in $(seq 1 1)
+do
+  roslaunch balm2 underground_easy.launch voxel_size:=$i
+done
+
+for i in $(seq 1 1)
+do
+  roslaunch balm2 quad_easy.launch voxel_size:=$i
+done
